@@ -1,0 +1,113 @@
+{% extends 'customer_base.html' %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+<div class="container mt-5 mb-5" id="product-container" data-product-id="{{ product.id }}">
+    <!-- Product Header -->
+    <div class="row">
+        <!-- Image (Left) -->
+        <div class="col-md-4">
+            <img src="{{ url_for('static', filename=product.image_url) if product.image_url else 'https://via.placeholder.com/300' }}"
+                 alt="{{ product.name }}"
+                 class="img-fluid rounded"
+                 style="max-height: 300px; object-fit: contain;">
+        </div>
+        <!-- Details and Rating (Center) -->
+        <div class="col-md-5">
+            <h1 class="h3">{{ product.name }}</h1>
+            <p class="text-muted">By <a href="#">{{ factory.name }}</a></p>
+            <div class="d-flex align-items-center mb-2">
+                <div class="star-rating">
+                    {% for i in range(1, 6) %}
+                        <i class="fas fa-star {{ 'text-warning' if i <= avg_rating|round else 'text-muted' }}"></i>
+                    {% endfor %}
+                </div>
+                <span class="ms-2">{{ avg_rating|round(1) }} out of 5 ({{ ratings_count }} ratings)</span>
+            </div>
+            <hr>
+            <p>{{ product.description or 'No description available.' }}</p>
+        </div>
+        <!-- Price and Actions (Right) -->
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h4 class="text-success">${{ '%.2f'|format(product.price) }}</h4>
+                <p class="text-muted">In stock: {{ product.quantity }}</p>
+                <form action="{{ url_for('shop.add_to_cart', product_id=product.id) }}" method="POST" class="mb-2">
+                    <div class="input-group mb-2">
+                        <input type="number" name="quantity" value="1" min="1" max="{{ product.quantity }}"
+                               class="form-control" style="width: 80px;">
+                        <button type="submit" class="btn btn-warning flex-grow-1">Add to Cart</button>
+                    </div>
+                </form>
+                <form action="{{ url_for('shop.add_to_wishlist', product_id=product.id) }}" method="POST">
+                    <button type="submit" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-heart"></i> {{ 'Remove from Wishlist' if is_wishlisted else 'Add to Wishlist' }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ratings and Comments Section -->
+    <hr class="my-5">
+    <h4 class="mb-4">Customer Reviews</h4>
+    {% if user and user.role == 'seller' %}
+        {% if not user_rating %}
+            <!-- Combined Rating and Comment Form -->
+            <div class="card p-3 mb-4" id="review-form-container">
+                <h5>Rate and review this product</h5>
+                <form id="review-form">
+                    <div class="star-rating mb-3" id="star-rating">
+                        {% for i in range(1, 6) %}
+                            <i class="fas fa-star fs-4 text-muted"
+                               data-value="{{ i }}" style="cursor: pointer;"></i>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="rating" id="rating-input" value="0">
+                    <textarea name="content" class="form-control mb-2" rows="4"
+                              placeholder="Your review (optional)"></textarea>
+                    <button type="submit" class="btn btn-primary">Submit Review</button>
+                </form>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                You have already reviewed this product.
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">
+            <a href="{{ url_for('auth.index') }}">Log in as a seller</a> to rate or review this product.
+        </div>
+    {% endif %}
+
+    <!-- Display Comments -->
+    <div id="comments-section">
+        {% if comments %}
+            {% for comment in comments %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>{{ comment.user.name }}</strong>
+                                <div class="star-rating">
+                                    {% set rating = comment_ratings.get(comment.user_id, 0) %}
+                                    {% for i in range(1, 6) %}
+                                        <i class="fas fa-star {{ 'text-warning' if i <= rating else 'text-muted' }}"></i>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <small class="text-muted">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                        <p class="mt-2">{{ comment.content }}</p>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted">No reviews yet. Be the first to review!</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Font Awesome for star icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<script src="{{ url_for('static', filename='shop/product.js') }}"></script>
+{% endblock %}

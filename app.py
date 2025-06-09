@@ -18,7 +18,7 @@ def create_app():
     # Register blueprints, with explicit prefixes if needed
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
-    app.register_blueprint(shop_bp, url_prefix='/shop')
+    app.register_blueprint(shop_bp)
     app.register_blueprint(chat_bp, url_prefix='/chat') 
 
     return app

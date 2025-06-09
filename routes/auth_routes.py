@@ -25,10 +25,8 @@ def login():
             flash('Unknown user role.', 'error')
             return redirect(url_for('auth.index'))
 
-    # 🛠️ Handle failed login
     flash('Invalid email or password.', 'error')
     return redirect(url_for('auth.index'))
-
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
@@ -80,5 +78,6 @@ def register():
 @auth_bp.route('/logout')
 def logout():
     session.pop('user_id', None)
+    session.pop('cart', None)  # Clear legacy session cart
     flash('You have been logged out.', 'success')
     return redirect(url_for('auth.index'))

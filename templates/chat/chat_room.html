@@ -1,34 +1,76 @@
-{% extends 'customer_base.html' %}
-{% block title %}Chat Room{% endblock %}
+{% extends "customer_base.html" %}
 {% block content %}
-<div class="container mt-5">
+<div class="container mt-4">
+    <!-- Debug: Chat ID {{ chat.id }} -->
     <h3 class="mb-4">
-        Chat with {{ chat.chat_user1.name if user.id == chat.user2_id else chat.chat_user2.name }}
-        {% if chat.order %} (Order #{{ chat.order.id }}){% endif %}
+        <!-- Partner Name Block -->
+        {% if chat.user2_id == user.id %}
+            {{ chat.chat_user1.name if chat.chat_user1 else 'Unknown User' }}
+        {% else %}
+            {{ chat.chat_user2.name if chat.chat_user2 else 'Unknown User' }}
+        {% endif %}
+        {% if chat.order %}
+            <small class="text-muted"> (Order #{{ chat.order_id }})</small>
+        {% endif %}
     </h3>
-    <div
-        id="chat-box"
-        class="border rounded p-3 mb-3"
-        style="height: 400px; overflow-y: scroll; background-color: #f8f9fa;"
-        data-user="{{ user.id }}"
-        data-chat="{{ chat.id }}"
-    >
-        <!-- Initial messages rendered server-side -->
-        {% for msg in messages %}
-            <div class="mb-2 {% if msg.sender_id == user.id %} text-end {% else %} text-start {% endif %}">
-                <small class="text-muted">
-                    {{ msg.message_sender.name }} - {{ msg.timestamp.strftime("%Y-%m-%d %H:%M") }}
-                </small>
-                <div class="p-2 rounded {% if msg.sender_id == user.id %} bg-primary text-white {% else %} bg-light {% endif %}">
-                    {{ msg.content }}
+    <div class="card shadow-sm">
+        <div class="chat-messages" id="chat-messages" data-chat="{{ chat.id }}" data-user="{{ user.id }}" style="height: 400px; overflow-y: auto; padding: 15px;">
+            <!-- Message Loop Start -->
+            {% for message in messages %}
+                <!-- Debug: Message ID {{ message.id }} -->
+                <div class="message {{ 'text-end' if message.sender_id == user.id else 'text-start' }} mb-3" data-message-id="{{ message.id }}">
+                    <div class="d-inline-block p-2 px-3 rounded {{ 'bg-primary text-white' if message.sender_id == user.id else 'bg-light' }}">
+                        <p class="mb-1">
+    {{
+        message.content.strip()|truncate(50)
+        if message.content and message.content.strip() else
+        ('Attachment' if message.attachment_url else 'No content')
+    }}
+</p>
+
+                        <!-- Attachment Block Start -->
+                        {% if message.attachment_url %}
+                            <div class="attachment">
+                                {% set ext = message.attachment_url.lower().rsplit('.', 1)[-1] %}
+                                {% if ext in ['png', 'jpg', 'jpeg', 'gif'] %}
+                                    <img src="{{ url_for('static', filename=message.attachment_url) }}" alt="Attachment" class="img-fluid" style="max-width: 200px;">
+                                {% else %}
+                                    <a href="{{ url_for('static', filename=message.attachment_url) }}" download>
+                                        <i class="bi bi-file-earmark-arrow-down"></i> Download Attachment
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        <!-- Attachment Block End -->
+                        <small class="text-muted d-block">
+                            {{ message.timestamp.strftime("%Y-%m-%d %H:%M") }}
+                            <!-- Seen Indicator Start -->
+                            {% if message.sender_id == user.id %}
+                                <i class="bi bi-check2-all {{ 'text-primary' if message.is_read else 'text-muted' }}"></i>
+                            {% endif %}
+                            <!-- Seen Indicator End -->
+                        </small>
+                    </div>
                 </div>
+            {% endfor %}
+            <!-- Message Loop End -->
+            <div class="typing-indicator" id="typing-indicator" style="display: none;">
+                <small class="text-muted">Someone is typing...</small>
             </div>
-        {% endfor %}
+        </div>
+        <div class="card-footer">
+            <form id="chat-form" action="{{ url_for('chat.send_message', chat_id=chat.id) }}" method="POST" enctype="multipart/form-data">
+                <div class="input-group d-flex align-items-center">
+                    <input type="file" id="fileInput" name="file" accept="image/*,.pdf,.doc,.docx" style="display: none;">
+                    <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="document.getElementById('fileInput').click()">
+                        <i class="bi bi-paperclip"></i>
+                    </button>
+                    <input type="text" id="content" name="content" class="form-control me-2" placeholder="Type a message..." autocomplete="off">
+                    <button type="submit" class="btn btn-primary">Send</button>
+                </div>
+            </form>
+        </div>
     </div>
-    <form id="message-form" class="d-flex">
-        <input type="text" id="message-input" name="content" class="form-control me-2" placeholder="Type your message..." autocomplete="off" required>
-        <button type="submit" class="btn btn-primary">Send</button>
-    </form>
 </div>
-<script src="{{ url_for('static', filename='chat/chat.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 {% endblock %}

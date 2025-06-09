@@ -12,11 +12,12 @@
                     <strong>Order #{{ order.id }}</strong> — {{ order.status }}
                     <br>
                     <small class="text-muted">Placed on {{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</small>
-                    <br>
+                </div>
+                <div class="ms-auto text-end">
                     <a href="{{ url_for('chat.start_chat', other_user_id=order.factory.user.id, order_id=order.id) }}"
-   class="btn btn-sm btn-primary">
-    <i class="bi bi-chat"></i> Chat
-</a>
+                       class="btn btn-sm btn-primary">
+                        <i class="bi bi-chat"></i> Chat
+                    </a>
                 </div>
             </div>
 
@@ -42,6 +43,12 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold">Total:</td>
+                                <td class="fw-bold">${{ '%.2f'|format(order.total_price) }}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

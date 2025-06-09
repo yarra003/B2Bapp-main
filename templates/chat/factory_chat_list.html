@@ -3,18 +3,41 @@
 <div class="container mt-4">
     <h3 class="text-dark">Messages</h3>
     {% if chats %}
-        <div class="card shadow-sm">
-            <ul class="list-group list-group-flush">
-                {% for chat in chats %}
-                    {% set partner = chat.chat_user1 if chat.user2_id == user.id else chat.chat_user2 %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <a href="{{ url_for('chat.view_chat', chat_id=chat.id) }}" class="text-decoration-none text-dark">
-                            Chat with {{ partner.name }} {% if chat.order %} (Order #{{ chat.order.id }}){% endif %}
-                        </a>
-                        <small class="text-muted">{{ chat.last_updated.strftime("%Y-%m-%d %H:%M") }}</small>
-                    </li>
-                {% endfor %}
-            </ul>
+        <div class="row">
+            {% for chat in chats %}
+                {% set partner = chat.chat_user1 if chat.user2_id == user.id else chat.chat_user2 %}
+                {% set last_message = chat.messages[-1] if chat.messages else None %}
+                <div class="col-12 col-md-6 col-lg-4 mb-3">
+                    <a href="{{ url_for('chat.view_chat', chat_id=chat.id) }}" class="text-decoration-none">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="card-title mb-0">
+                                        {{ partner.name }}
+                                        {% if chat.order %} (Order #{{ chat.order.id }}){% endif %}
+                                    </h6>
+                                    <small class="text-muted">{{ chat.last_updated.strftime("%Y-%m-%d %H:%M") }}</small>
+                                </div>
+                                <p class="card-text text-muted small mt-2">
+                                    {% if last_message %}
+                                        {% if last_message.sender_id == user.id %}
+                                            <i class="bi bi-check2-all {% if last_message.is_read %}text-primary{% else %}text-muted{% endif %}"></i>
+                                            You:
+                                        {% endif %}
+                                        {{
+                                            last_message.content.strip()|truncate(50)
+                                            if last_message.content and last_message.content.strip() else
+                                            ("Attachment" if last_message.attachment_url else "No content")
+                                        }}
+                                    {% else %}
+                                        No messages yet
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
         </div>
     {% else %}
         <div class="alert alert-info text-center">
@@ -22,4 +45,5 @@
         </div>
     {% endif %}
 </div>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 {% endblock %}

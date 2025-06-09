@@ -1,18 +1,17 @@
-import logging
-import sys
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, session
 from models import Factory, Order, db, Chat, Message, User
 from datetime import datetime
+from werkzeug.utils import secure_filename
+import os
+import logging
 
-# Force logging to console
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s %(levelname)s: %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__, url_prefix='/chat')
+
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx'}
 
 # Custom authentication check
 def user_required():
@@ -26,56 +25,43 @@ def user_required():
         return False, redirect(url_for('auth.index'))
     return True, user
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 # ---------------- List All Chats ----------------
 @chat_bp.route('/', endpoint='list_chats')
 def chat_list():
-    print("*** ENTERING chat_list ***")
-    logger.debug("Entering chat_list")
-
     ok, resp = user_required()
     if not ok:
-        print("*** user_required failed in chat_list ***")
-        logger.debug("user_required failed in chat_list")
         return resp
 
     user = resp
-    print(f"*** User in chat_list: {user.id}, {user.name}, role: {user.role} ***")
-    logger.debug(f"User in chat_list: {user.id}, {user.name}, role: {user.role}")
-
     chats = Chat.query.filter(
         (Chat.user1_id == user.id) | (Chat.user2_id == user.id)
-    ).order_by(Chat.started_at.desc()).all()
-    print(f"*** Found {len(chats)} chats for user {user.id} ***")
-    logger.debug(f"Found {len(chats)} chats for user {user.id}")
-
+    ).order_by(Chat.last_updated.desc()).all()
+    logger.debug(f"User {user.id} fetched {len(chats)} chats")
     template = 'chat/factory_chat_list.html' if user.role == 'factory' else 'chat/chat_list.html'
     return render_template(template, user=user, chats=chats)
 
 # ---------------- View Chat ----------------
 @chat_bp.route('/<int:chat_id>', endpoint='view_chat')
 def view_chat(chat_id):
-    print(f"*** ENTERING view_chat with chat_id={chat_id} ***")
-    logger.debug(f"Entering view_chat with chat_id={chat_id}")
-
     ok, resp = user_required()
     if not ok:
-        print("*** user_required failed in view_chat ***")
-        logger.debug("user_required failed in view_chat")
         return resp
 
     user = resp
     chat = Chat.query.get_or_404(chat_id)
-    print(f"*** Chat loaded: ID={chat.id}, user1_id={chat.user1_id}, user2_id={chat.user2_id}, order_id={chat.order_id} ***")
-    logger.debug(f"Chat loaded: ID={chat.id}, user1_id={chat.user1_id}, user2_id={chat.user2_id}, order_id={chat.order_id}")
-
     if user.id not in (chat.user1_id, chat.user2_id):
-        print("*** Unauthorized access to chat ***")
-        logger.error("Unauthorized access to chat")
+        logger.error(f"User {user.id} unauthorized for chat {chat_id}")
         abort(403)
 
     messages = Message.query.filter_by(chat_id=chat.id).order_by(Message.timestamp.asc()).all()
-    print(f"*** Loaded {len(messages)} messages for chat {chat.id} ***")
-    logger.debug(f"Loaded {len(messages)} messages for chat {chat.id}")
+    logger.debug(f"Chat {chat_id}: user1_id={chat.user1_id}, user2_id={chat.user2_id}, messages={len(messages)}")
+    if not chat.chat_user1 or not chat.chat_user2:
+        logger.error(f"Chat {chat_id} missing user1 or user2: user1={chat.chat_user1}, user2={chat.chat_user2}")
+        flash('Invalid chat participants.', 'error')
+        return redirect(url_for('chat.list_chats'))
 
     template = 'chat/factory_chat_room.html' if user.role == 'factory' else 'chat/chat_room.html'
     return render_template(template, user=user, chat=chat, messages=messages)
@@ -83,164 +69,205 @@ def view_chat(chat_id):
 # ---------------- Send Message ----------------
 @chat_bp.route('/<int:chat_id>/send', methods=['POST'])
 def send_message(chat_id):
-    print(f"*** ENTERING send_message with chat_id={chat_id} ***")
-    logger.debug(f"Entering send_message with chat_id={chat_id}")
-
     ok, resp = user_required()
     if not ok:
-        print("*** user_required failed in send_message ***")
-        logger.debug("user_required failed in send_message")
         return resp
 
     user = resp
     chat = Chat.query.get_or_404(chat_id)
     if user.id not in (chat.user1_id, chat.user2_id):
-        print("*** Unauthorized access to send_message ***")
-        logger.error("Unauthorized access to send_message")
+        logger.error(f"User {user.id} unauthorized to send message in chat {chat_id}")
         return jsonify({'error': 'Unauthorized'}), 403
 
     content = request.form.get('content', '').strip()
-    print(f"*** Message content: {content} ***")
-    logger.debug(f"Message content: {content}")
+    file = request.files.get('file')
+    attachment_url = None
 
-    if content:
-        new_msg = Message(
-            chat_id=chat_id,
-            sender_id=user.id,
-            content=content,
-            timestamp=datetime.utcnow()
-        )
-        chat.last_updated = datetime.utcnow()
-        db.session.add(new_msg)
-        db.session.commit()
-        print(f"*** Message sent for chat {chat_id} by user {user.id} ***")
-        logger.debug(f"Message sent for chat {chat_id} by user {user.id}")
-        return jsonify({'success': True})
+    if file and file.filename:
+        if allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            upload_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', UPLOAD_FOLDER)
+            os.makedirs(upload_dir, exist_ok=True)
+            file.save(os.path.join(upload_dir, filename))
+            attachment_url = f'uploads/{filename}'
+            logger.debug(f"Uploaded file: {filename} for chat {chat_id}")
+        else:
+            logger.warning(f"Invalid file type: {file.filename} for chat {chat_id}")
+            return jsonify({'error': 'Invalid file type'}), 400
 
-    print("*** Empty message content ***")
-    logger.debug("Empty message content")
-    return jsonify({'error': 'Empty content'}), 400
+    if not content and not attachment_url:
+        logger.warning(f"Empty message attempted in chat {chat_id}")
+        return jsonify({'error': 'Empty message or no attachment'}), 400
 
-# ---------------- API: Fetch Messages (for polling/AJAX) ----------------
+    new_msg = Message(
+        chat_id=chat_id,
+        sender_id=user.id,
+        content=content or None,
+        attachment_url=attachment_url,
+        timestamp=datetime.utcnow(),
+        is_read=False
+    )
+    chat.last_updated = datetime.utcnow()
+    db.session.add(new_msg)
+    db.session.commit()
+    logger.debug(f"Message sent in chat {chat_id} by user {user.id}")
+    return jsonify({'success': True})
+
+# ---------------- API: Fetch Messages ----------------
 @chat_bp.route('/<int:chat_id>/messages')
 def fetch_messages(chat_id):
-    print(f"*** ENTERING fetch_messages with chat_id={chat_id} ***")
-    logger.debug(f"Entering fetch_messages with chat_id={chat_id}")
-
     ok, resp = user_required()
     if not ok:
-        print("*** user_required failed in fetch_messages ***")
-        logger.debug("user_required failed in fetch_messages")
         return resp
 
     user = resp
     chat = Chat.query.get_or_404(chat_id)
     if user.id not in (chat.user1_id, chat.user2_id):
-        print("*** Unauthorized access to fetch_messages ***")
-        logger.error("Unauthorized access to fetch_messages")
+        logger.error(f"User {user.id} unauthorized to fetch messages for chat {chat_id}")
         return jsonify({'error': 'Unauthorized'}), 403
 
     messages = Message.query.filter_by(chat_id=chat.id).order_by(Message.timestamp.asc()).all()
-    print(f"*** Fetched {len(messages)} messages for chat {chat_id} ***")
     logger.debug(f"Fetched {len(messages)} messages for chat {chat_id}")
-
     return jsonify([
         {
+            'id': msg.id,
             'sender_id': msg.sender_id,
-            'sender_name': msg.message_sender.name,
+            'sender_name': User.query.get(msg.sender_id).name if User.query.get(msg.sender_id) else 'Unknown',
             'content': msg.content,
+            'attachment_url': msg.attachment_url,
+            'is_read': msg.is_read,
             'timestamp': msg.timestamp.strftime("%Y-%m-%d %H:%M")
         } for msg in messages
     ])
 
+# ---------------- API: Update Typing Status ----------------
+@chat_bp.route('/<int:chat_id>/typing', methods=['POST'])
+def update_typing(chat_id):
+    ok, resp = user_required()
+    if not ok:
+        return resp
+
+    user = resp
+    chat = Chat.query.get_or_404(chat_id)
+    if user.id not in (chat.user1_id, chat.user2_id):
+        logger.error(f"User {user.id} unauthorized to update typing in chat {chat_id}")
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json()
+    typing = data.get('typing', False)
+
+    if user.id == chat.user1_id:
+        chat.user1_typing = typing
+    else:
+        chat.user2_typing = typing
+    db.session.commit()
+    logger.debug(f"Typing status updated for user {user.id} in chat {chat_id}: {typing}")
+    return jsonify({'success': True})
+
+# ---------------- API: Get Typing Status ----------------
+@chat_bp.route('/<int:chat_id>/typing_status')
+def get_typing_status(chat_id):
+    ok, resp = user_required()
+    if not ok:
+        return resp
+
+    user = resp
+    chat = Chat.query.get_or_404(chat_id)
+    if user.id not in (chat.user1_id, chat.user2_id):
+        logger.error(f"User {user.id} unauthorized to get typing status for chat {chat_id}")
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    partner = chat.chat_user1 if user.id == chat.user2_id else chat.chat_user2
+    is_typing = chat.user2_typing if user.id == chat.user1_id else chat.user1_typing
+    logger.debug(f"Typing status for chat {chat_id}: partner={partner.name if partner else 'None'}, is_typing={is_typing}")
+    return jsonify({
+        'is_typing': is_typing,
+        'partner_name': partner.name if partner else 'Unknown'
+    })
+
+# ---------------- API: Mark Messages as Read ----------------
+@chat_bp.route('/<int:chat_id>/read', methods=['POST'])
+def mark_read(chat_id):
+    ok, resp = user_required()
+    if not ok:
+        return resp
+
+    user = resp
+    chat = Chat.query.get_or_404(chat_id)
+    if user.id not in (chat.user1_id, chat.user2_id):
+        logger.error(f"User {user.id} unauthorized to mark messages read in chat {chat_id}")
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    messages = Message.query.filter_by(chat_id=chat_id, is_read=False).filter(Message.sender_id != user.id).all()
+    for msg in messages:
+        msg.is_read = True
+    db.session.commit()
+    logger.debug(f"Marked {len(messages)} messages as read in chat {chat_id} by user {user.id}")
+    return jsonify({'success': True})
+
 # ---------------- Start New Chat ----------------
 def get_or_create_chat(user1_id, user2_id, order_id=None):
-    print(f"*** get_or_create_chat called with user1_id={user1_id}, user2_id={user2_id}, order_id={order_id} ***")
-    logger.debug(f"get_or_create_chat called with user1_id={user1_id}, user2_id={user2_id}, order_id={order_id}")
-
     if user1_id == user2_id:
-        logger.error("Cannot create chat with the same user")
-        print("*** ERROR: Cannot create chat with the same user ***")
         raise ValueError("Cannot create chat with the same user")
 
     user1 = User.query.get(user1_id)
     user2 = User.query.get(user2_id)
     if not user1 or not user2:
-        logger.error(f"One or both users not found: user1_id={user1_id}, user2_id={user2_id}")
-        print(f"*** ERROR: One or both users not found: user1_id={user1_id}, user2_id={user2_id} ***")
+        logger.error(f"Users not found: user1_id={user1_id}, user2_id={user2_id}")
         raise ValueError("One or both users not found")
 
     if order_id:
         order = Order.query.get(order_id)
         if not order:
             logger.error(f"Order not found: order_id={order_id}")
-            print(f"*** ERROR: Order not found: order_id={order_id} ***")
             raise ValueError("Order not found")
 
     uid1, uid2 = sorted([user1_id, user2_id])
-    logger.debug(f"Querying for existing chat with user1_id={uid1}, user2_id={uid2}, order_id={order_id}")
-    print(f"*** Querying for existing chat with user1_id={uid1}, user2_id={uid2}, order_id={order_id} ***")
     chat = Chat.query.filter_by(user1_id=uid1, user2_id=uid2)
     if order_id:
         chat = chat.filter_by(order_id=order_id)
     chat = chat.first()
     if chat:
-        logger.debug(f"Existing chat found with ID: {chat.id}")
-        print(f"*** Existing chat found with ID: {chat.id} ***")
+        logger.debug(f"Found existing chat: chat_id={chat.id}")
         return chat
 
     new_chat = Chat(user1_id=uid1, user2_id=uid2, order_id=order_id)
     db.session.add(new_chat)
     db.session.flush()
-    logger.debug(f"New chat created with ID: {new_chat.id}")
-    print(f"*** New chat created with ID: {new_chat.id} ***")
+    logger.debug(f"Created new chat: chat_id={new_chat.id}")
     return new_chat
 
 @chat_bp.route('/start/<int:other_user_id>/<int:order_id>')
 def start_chat(other_user_id, order_id):
-    print(f"*** ENTERING start_chat with other_user_id={other_user_id}, order_id={order_id} ***")
-    logger.debug(f"Entering start_chat with other_user_id={other_user_id}, order_id={order_id}")
-
     ok, resp = user_required()
     if not ok:
-        print("*** user_required failed in start_chat ***")
-        logger.debug("user_required failed in start_chat")
         return resp
 
     user = resp
-    print(f"*** User: {user.id}, {user.name}, role: {user.role} ***")
-    logger.debug(f"User: {user.id}, {user.name}, role: {user.role}")
-
     if user.id == other_user_id:
-        print("*** Cannot chat with yourself ***")
-        logger.debug("Cannot chat with yourself")
+        logger.warning(f"User {user.id} attempted to chat with self")
         flash('Cannot chat with yourself.', 'error')
         return redirect(url_for('shop.orders'))
 
     order = Order.query.get_or_404(order_id)
-    print(f"*** Order: {order.id}, factory_id: {order.factory_id} ***")
-    logger.debug(f"Order: {order.id}, factory_id: {order.factory_id}")
-
     factory = Factory.query.get(order.factory_id)
     if not factory or not factory.user:
-        print(f"*** ERROR: Factory {order.factory_id} has no associated user ***")
-        logger.error(f"Factory {order.factory_id} has no associated user")
+        logger.error(f"No factory user for order {order_id}")
         flash('No factory user available for this order.', 'error')
         return redirect(url_for('shop.orders'))
 
     if factory.user.id != other_user_id:
-        print(f"*** ERROR: Other user {other_user_id} does not match factory user {factory.user.id} ***")
-        logger.error(f"Other user {other_user_id} does not match factory user {factory.user.id}")
+        logger.error(f"Invalid factory user {other_user_id} for order {order_id}")
         flash('Invalid factory user for this order.', 'error')
         return redirect(url_for('shop.orders'))
 
     try:
         chat = get_or_create_chat(user.id, other_user_id, order_id)
-        print(f"*** Redirecting to chat ID: {chat.id} ***")
-        logger.debug(f"Redirecting to chat ID: {chat.id}")
+        db.session.commit()
+        logger.debug(f"Started chat {chat.id} for user {user.id} and other_user {other_user_id}")
         return redirect(url_for('chat.view_chat', chat_id=chat.id))
     except Exception as e:
-        print(f"*** ERROR creating chat: {str(e)} ***")
-        logger.error(f"Error creating chat: {str(e)}")
+        db.session.rollback()
+        logger.error(f"Error starting chat: {str(e)}")
         flash(f'Error starting chat: {str(e)}', 'error')
         return redirect(url_for('shop.orders'))

@@ -36,12 +36,17 @@
     {% for product in products %}
     <div class="col">
         <div class="card product-card h-100 shadow-sm rounded-3">
-            <img src="{{ url_for('static', filename=product.image_url) if product.image_url else 'https://via.placeholder.com/300' }}" class="card-img-top" alt="{{ product.name }}">
+            <a href="{{ url_for('shop.product_details', product_id=product.id) }}">
+                <img src="{{ url_for('static', filename=product.image_url) if product.image_url else 'https://via.placeholder.com/300' }}"
+                     class="card-img-top" alt="{{ product.name }}">
+            </a>
             <div class="card-body d-flex flex-column">
-                <h5 class="card-title">{{ product.name }}</h5>
+                <a href="{{ url_for('shop.product_details', product_id=product.id) }}" class="text-decoration-none text-dark">
+                    <h5 class="card-title">{{ product.name }}</h5>
+                </a>
                 <p class="text-muted small mb-1">By {{ product.factory.name }}</p>
                 <p class="card-text text-truncate" title="{{ product.description }}">{{ product.description }}</p>
-                <p class="fw-bold mb-2">${{ '%.2f' % product.price }}</p>
+                <p class="fw-bold mb-2">${{ '%.2f'|format(product.price) }}</p>
                 <form method="post" action="{{ url_for('shop.add_to_cart', product_id=product.id) }}" class="mt-auto">
                     <button type="submit" class="btn btn-outline-primary w-100">Add to Cart</button>
                 </form>
