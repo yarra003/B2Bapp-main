@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Seller Shop</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet">
+</head>
+<body>
+  <!-- Flash message container -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div id="flash-messages" data-messages='{{ messages | tojson | safe }}'></div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="container mt-5">
+    <h1>Welcome to the Shop, {{ user.name }}!</h1>
+    <p>You are logged in as a <strong>{{ user.role }}</strong>.</p>
+    <h1>FACTORYYYYYYYYYYYYYYYYYY</h1>
+    <a href="/logout" class="btn btn-danger">Logout</a>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+  <script>
+    const flashDiv = document.getElementById('flash-messages');
+    if (flashDiv) {
+      const messages = JSON.parse(flashDiv.getAttribute('data-messages'));
+      messages.forEach(([category, message]) => {
+        toastr.options = {
+          "closeButton": true,
+          "progressBar": true,
+          "positionClass": "toast-top-center"
+        };
+        toastr[category](message);
+      });
+    }
+  </script>
+</body>
+</html>

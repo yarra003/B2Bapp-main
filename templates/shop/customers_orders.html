@@ -1,0 +1,56 @@
+{% extends 'customer_base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">My Orders</h2>
+
+    {% if orders %}
+        {% for order in orders %}
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>Order #{{ order.id }}</strong> — {{ order.status }}
+                    <br>
+                    <small class="text-muted">Placed on {{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                    <br>
+                    <a href="{{ url_for('chat.start_chat', other_user_id=order.factory.user.id, order_id=order.id) }}"
+   class="btn btn-sm btn-primary">
+    <i class="bi bi-chat"></i> Chat
+</a>
+                </div>
+            </div>
+
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Factory: {{ order.factory.name }} ({{ order.factory.location }})</h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th>Unit Price</th>
+                                <th>Quantity</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.items %}
+                            <tr>
+                                <td>{{ item.product.name }}</td>
+                                <td>${{ '%.2f'|format(item.unit_price) }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>${{ '%.2f'|format(item.unit_price * item.quantity) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info text-center">
+            You haven't placed any orders yet.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Orders Dashboard</h2>
+
+    {% if orders %}
+    <table class="table table-bordered table-hover bg-white shadow-sm">
+        <thead class="table-light">
+            <tr>
+                <th>Order ID</th>
+                <th>Seller</th>
+                <th>Products</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Update</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>#{{ order.id }}</td>
+                <td>{{ order.seller.name }}</td>
+                <td>
+                    <ul class="list-unstyled mb-0">
+                        {% for item in order.items %}
+                        <li class="mb-2">
+                            <strong>{{ item.product.name }}</strong> &times; {{ item.quantity }} @ ${{ '%.2f' | format(item.unit_price) }}
+                            = <span class="text-success">${{ '%.2f' | format(item.quantity * item.unit_price) }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </td>
+                <td>${{ '%.2f' | format(order.total_price) }}</td>
+                <td>
+                    <span class="badge
+                        {% if order.status == 'Pending' %} bg-warning text-dark
+                        {% elif order.status == 'Processing' %} bg-primary
+                        {% elif order.status == 'Shipped' %} bg-info text-dark
+                        {% elif order.status == 'Delivered' %} bg-success
+                        {% else %} bg-secondary
+                        {% endif %}">
+                        {{ order.status }}
+                    </span>
+                </td>
+                <td>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <select class="form-select form-select-sm" data-order-id="{{ order.id }}">
+                        <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>Pending</option>
+                        <option value="Processing" {% if order.status == 'Processing' %}selected{% endif %}>Processing</option>
+                        <option value="Shipped" {% if order.status == 'Shipped' %}selected{% endif %}>Shipped</option>
+                        <option value="Delivered" {% if order.status == 'Delivered' %}selected{% endif %}>Delivered</option>
+                    </select>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-info text-center">
+        You have no orders yet.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.querySelectorAll('select[data-order-id]').forEach(select => {
+  select.addEventListener('change', async function() {
+    const orderId = this.getAttribute('data-order-id');
+    const newStatus = this.value;
+
+    try {
+      const response = await fetch('/dashboard/update_order_status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ order_id: orderId, status: newStatus })
+      });
+
+      if (!response.ok) {
+        alert('Failed to update order status.');
+        return;
+      }
+
+      const row = this.closest('tr');
+      const badge = row.querySelector('td:nth-child(5) span.badge');
+
+      if (badge) {
+        badge.textContent = newStatus;
+        badge.className = 'badge';
+
+        switch (newStatus) {
+          case 'Pending':
+            badge.classList.add('bg-warning', 'text-dark');
+            break;
+          case 'Processing':
+            badge.classList.add('bg-primary');
+            break;
+          case 'Shipped':
+            badge.classList.add('bg-info', 'text-dark');
+            break;
+          case 'Delivered':
+            badge.classList.add('bg-success');
+            break;
+          default:
+            badge.classList.add('bg-secondary');
+        }
+      }
+    } catch (error) {
+      alert('Error updating order status.');
+      console.error(error);
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Log In</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Toastr CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet">
+</head>
+<body>
+  <!-- Flash message container -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div id="flash-messages" data-messages='{{ messages | tojson | safe }}'></div>
+    {% endif %}
+  {% endwith %}
+
+  <section class="vh-100 d-flex align-items-center justify-content-center" style="background-color: #f4f4f4;">
+    <div class="card text-black shadow-lg" style="border-radius: 25px; width: 100%; max-width: 450px;">
+      <div class="card-body p-5">
+
+        <!-- Logo -->
+        <div class="text-center mb-1">
+          <img src="/static/logo.png" alt="Logo" style="height: 300px;">
+        </div>
+
+        <h2 class="text-center fw-bold mb-2" style="color: rgb(8, 38, 66);">Log In</h2>
+
+        <!-- Login Form -->
+        <form method="POST" action="/login">
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="text" id="email" name="email" class="form-control" required />
+          </div>
+
+          <div class="mb-4">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" id="password" name="password" class="form-control" required />
+          </div>
+
+          <div class="d-grid mb-3">
+            <button type="submit" class="btn btn-primary btn-lg">Log In</button>
+          </div>
+
+          <div class="text-center">
+            Don’t have an account? <a href="/register">Register here</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- JS Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+  <script>
+    const flashDiv = document.getElementById('flash-messages');
+    if (flashDiv) {
+      const messages = JSON.parse(flashDiv.getAttribute('data-messages'));
+      messages.forEach(([category, message]) => {
+        toastr.options = {
+          "closeButton": true,
+          "progressBar": true,
+          "positionClass": "toast-top-center"
+        };
+        toastr[category](message);
+      });
+    }
+  </script>
+</body>
+</html>

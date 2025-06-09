@@ -1,0 +1,21 @@
+{% extends "customer_base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h3>Your Conversations</h3>
+    {% if chats %}
+        <ul class="list-group">
+            {% for chat in chats %}
+                {% set partner = chat.chat_user1 if chat.user2_id == user.id else chat.chat_user2 %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('chat.view_chat', chat_id=chat.id) }}">
+                        Chat with {{ partner.name }}
+                    </a>
+                    <small class="text-muted">{{ chat.last_updated.strftime("%Y-%m-%d %H:%M") }}</small>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>You have no active chats yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

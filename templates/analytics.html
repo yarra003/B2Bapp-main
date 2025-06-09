@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Sales Analytics</h2>
+
+    <!-- Filter Options -->
+    <div class="d-flex justify-content-between mb-4">
+        <div>
+            <label for="time-filter" class="form-label">Select Time Period</label>
+            <select id="time-filter" class="form-select" onchange="updateAnalytics()" aria-live="polite" aria-label="Select Time Period for Sales Analytics">
+                <option value="all">All Time</option>
+                <option value="week">Past Week</option>
+                <option value="month">Past 30 Days</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="row">
+        <!-- Total Revenue -->
+        <div class="col-md-4">
+            <div class="card p-3 mb-4">
+                <h5>Total Revenue</h5>
+                <p id="total-revenue" aria-live="polite">$0.00</p>
+            </div>
+        </div>
+
+        <!-- Fulfilled Orders -->
+        <div class="col-md-4">
+            <div class="card p-3 mb-4">
+                <h5>Fulfilled Orders</h5>
+                <p id="fulfilled-orders" aria-live="polite">0</p>
+            </div>
+        </div>
+
+        <!-- Top 3 Best-Selling Products -->
+        <div class="col-md-4">
+            <div class="card p-3 mb-4">
+                <h5>Top 3 Best-Selling Products</h5>
+                <ul id="top-products" aria-live="polite">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sales Over Time Chart -->
+    <div class="card p-4 mb-4">
+        <h5>Sales Over Time</h5>
+        <canvas id="sales-chart"></canvas>
+        <p id="no-sales-data" class="text-muted mt-3" style="display:none;">No sales data yet. Displaying daily sales.</p>
+    </div>
+
+    <!-- Low Stock Warning -->
+    <div class="card p-4">
+        <h5>Low Stock Warning</h5>
+        <ul id="low-stock-warning" aria-live="polite">
+            <li>No products are low in stock.</li>
+        </ul>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let salesChart;
+
+    async function updateAnalytics() {
+        const periodSelect = document.getElementById('time-filter');
+        const period = periodSelect.value;
+
+        // Optional: disable select while loading
+        periodSelect.disabled = true;
+
+        try {
+            const response = await fetch(`/analytics/data/${period}`);
+            const data = await response.json();
+
+            document.getElementById('total-revenue').textContent = `$${data.total_revenue.toFixed(2)}`;
+            document.getElementById('fulfilled-orders').textContent = data.fulfilled_orders;
+
+            // Top products
+            const topProductsList = document.getElementById('top-products');
+            topProductsList.innerHTML = '';
+            if (data.top_products.length > 0) {
+                data.top_products.forEach(product => {
+                    const li = document.createElement('li');
+                    li.textContent = product.name;
+                    topProductsList.appendChild(li);
+                });
+            } else {
+                topProductsList.innerHTML = '<li>You don\'t have enough data yet.</li>';
+            }
+
+            // Low stock
+            const lowStockList = document.getElementById('low-stock-warning');
+            lowStockList.innerHTML = '';
+            if (data.low_stock.length > 0) {
+                data.low_stock.forEach(product => {
+                    const li = document.createElement('li');
+                    li.textContent = `${product.name} (Quantity: ${product.quantity})`;
+                    lowStockList.appendChild(li);
+                });
+            } else {
+                lowStockList.innerHTML = '<li>No products are low in stock.</li>';
+            }
+
+            // Sales chart
+            const noSalesMsg = document.getElementById('no-sales-data');
+            if (data.sales_over_time.length > 0) {
+                noSalesMsg.style.display = 'none';
+                updateSalesChart(data.sales_over_time);
+            } else {
+                noSalesMsg.style.display = 'block';
+                if (salesChart) {
+                    salesChart.destroy();
+                    salesChart = null;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load analytics data:', error);
+        } finally {
+            periodSelect.disabled = false;
+        }
+    }
+
+    function updateSalesChart(data) {
+        const labels = data.map(item => item.date);
+        const sales = data.map(item => item.sales);
+
+        if (salesChart) {
+            salesChart.destroy();
+        }
+
+        const ctx = document.getElementById('sales-chart').getContext('2d');
+        salesChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Sales Over Time',
+                    data: sales,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Sales ($)'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateAnalytics();
+    });
+</script>
+
+{% endblock %}
