@@ -129,12 +129,26 @@ def products():
 @dashboard_bp.route('/products/delete/<int:product_id>', methods=['POST'])
 def delete_product(product_id):
     try:
+        if 'user_id' not in session:
+            flash('Please log in.', 'error')
+            return redirect(url_for('auth.index'))
+
+        user = User.query.get(session['user_id'])
+        if not user or not user.factory:
+            flash('Unauthorized.', 'error')
+            return redirect(url_for('auth.index'))
+
         product = Product.query.get_or_404(product_id)
+        if product.factory_id != user.factory.id:
+            flash('You are not authorized to delete this product.', 'error')
+            return redirect(url_for('dashboard.products'))
+
         db.session.delete(product)
         db.session.commit()
         flash('Product deleted successfully.', 'success')
         logger.debug(f"Deleted product {product_id}")
         return redirect(url_for('dashboard.products'))
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error deleting product {product_id}: {str(e)}", exc_info=True)

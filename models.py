@@ -53,10 +53,10 @@ class Product(db.Model):
     price = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    ratings = db.relationship('Rating', backref='product')
-    comments = db.relationship('Comment', backref='product')
-    wishlist_items = db.relationship('Wishlist', backref='product')
-    cart_items = db.relationship('CartItem', backref='product')
+    ratings = db.relationship('Rating', backref='product', cascade="all, delete-orphan")
+    comments = db.relationship('Comment', backref='product', cascade="all, delete-orphan")
+    wishlist_items = db.relationship('Wishlist', backref='product', cascade="all, delete-orphan")
+    cart_items = db.relationship('CartItem', backref='product', cascade="all, delete-orphan")
 
 class Order(db.Model):
     __tablename__ = 'orders'
